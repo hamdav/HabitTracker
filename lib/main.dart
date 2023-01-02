@@ -37,7 +37,7 @@ class RandomNumber extends StatefulWidget {
 
 class _RandomNumberState extends State<RandomNumber> {
 
-	final List<int> _numbers = [];
+	final List<Habit> _habits = [];
 	Iterable<int> _rndGenerator(Random rng) sync* {
 		yield rng.nextInt(100);
 	}
@@ -46,28 +46,64 @@ class _RandomNumberState extends State<RandomNumber> {
 	@override
 	Widget build(BuildContext context) {
 		final rng = Random();
-		return ListView.builder(
-			padding: const EdgeInsets.all(16.0),
-			itemBuilder: (context, i) {
-				if (i.isOdd) return const Divider();
 
-				final index = i ~/ 2;
-				if (index >= _numbers.length) {
-					_numbers.addAll(_rndGenerator(rng).take(10));
-				}
-				return ListTile(
-					title: Text(_numbers[index].toString(),
-						style: _biggerFont,
-					),
-					trailing: Icon(    // NEW from here ...
-						Icons.check_circle,
-						color: Colors.green,
-						semanticLabel: 'Do',
-						size: 40
-					  ),
-				);
-			},
-		);
+		_habits.add(Habit(_rndGenerator(rng).first.toString()));
+
+		var habitWidgets = _habits.map(
+			(h) => ListTile(
+				title: Text(h.name,
+					style: _biggerFont,
+				),
+				trailing: Icon(
+					Icons.check_circle,
+					color: Colors.green,
+					semanticLabel: 'Do',
+					size: 40
+				  ),
+			)
+		).toList();
+
+		return ListView(
+			children: habitWidgets
+			);
+		/* return ListView.builder( */
+		/* 	padding: const EdgeInsets.all(16.0), */
+		/* 	itemBuilder: (context, i) { */
+		/* 		if (i.isOdd) return const Divider(); */
+
+		/* 		final index = i ~/ 2; */
+		/* 		if (index >= _numbers.length) { */
+		/* 			_numbers.addAll(_rndGenerator(rng).take(10)); */
+		/* 		} */
+		/* 		return ListTile( */
+		/* 			title: Text(_numbers[index].toString(), */
+		/* 				style: _biggerFont, */
+		/* 			), */
+		/* 			trailing: Icon( */
+		/* 				Icons.check_circle, */
+		/* 				color: Colors.green, */
+		/* 				semanticLabel: 'Do', */
+		/* 				size: 40 */
+		/* 			  ), */
+		/* 		); */
+		/* 	}, */
+		/* ); */
 	}
 }
 
+class Habit {
+	late final String name;
+	Set<Habit> categories = {};
+	late List<DateTime> checks = [];
+
+	Habit(this.name);
+
+	void check() {
+		checks.add(DateTime.now());
+	}
+
+	// TODO: Remove category
+	void addCategory(Habit cat) {
+		categories.add(cat);
+	}
+}
