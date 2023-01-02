@@ -113,8 +113,11 @@ class _HabitsCheckerWidgetState extends State<HabitsCheckerWidget> {
 									h.removeLastCheck();
 									break;
 								case HabitAction.delete:
-									// TODO: Confirm?
-									_habits.remove(h);
+									_displayConfirmDialog(context, "Delete ${h.name}", "This action cannot be undone").then((rv) {
+										if (rv) {
+											_habits.remove(h);
+										}
+									});
 									break;
 								case HabitAction.rename:
 									_displayTextInputDialog(context, "Rename", "New name")
@@ -160,6 +163,43 @@ class _HabitsCheckerWidgetState extends State<HabitsCheckerWidget> {
 			),
 		);
 		}
+	Future<bool> _displayConfirmDialog(BuildContext context, String title, String body) async {
+		/*
+		 * Shows a popup with input and returns the user input if
+		 * they pressed OK, otherwise it returns null
+		 */
+		bool rv = false;
+		await showDialog(
+			context: context,
+			builder: (context) {
+				return AlertDialog(
+					title: Text(title),
+					content: Text(body),
+					actions: <Widget>[
+						TextButton(
+							child: const Text('CANCEL'),
+							onPressed: () {
+								setState(() {
+									rv = false;
+									Navigator.pop(context);
+								});
+							},
+						),
+						TextButton(
+							child: const Text('OK'),
+							onPressed: () {
+								setState(() {
+									rv = true;
+									Navigator.pop(context);
+								});
+							},
+						),
+					],
+				);
+			}
+		);
+		return rv;
+	}
 	Future<String?> _displayTextInputDialog(BuildContext context, String title, String hint) async {
 		/*
 		 * Shows a popup with input and returns the user input if
