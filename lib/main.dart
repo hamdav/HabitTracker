@@ -22,34 +22,26 @@ class MyApp extends StatelessWidget {
         appBar: AppBar(
           title: const Text('Welcome to Flutter'),
         ),
-        body: const Center(
-          child: RandomNumber(),
-        ),
+        body: const HabitsCheckerWidget(),
       ),
     );
   }
 }
 
-class RandomNumber extends StatefulWidget {
-	const RandomNumber({super.key});
+class HabitsCheckerWidget extends StatefulWidget {
+	const HabitsCheckerWidget({super.key});
 
 	@override
-    State<RandomNumber> createState() => _RandomNumberState();
+    State<HabitsCheckerWidget> createState() => _HabitsCheckerWidgetState();
 }
 
-class _RandomNumberState extends State<RandomNumber> {
+class _HabitsCheckerWidgetState extends State<HabitsCheckerWidget> {
 
 	final List<Habit> _habits = [];
-	Iterable<int> _rndGenerator(Random rng) sync* {
-		yield rng.nextInt(100);
-	}
 	final _biggerFont = const TextStyle(fontSize: 18);
-	String? codeDialog;
-	String? valueText;
 
 	@override
 	Widget build(BuildContext context) {
-		final rng = Random();
 
 		HabitAction? menuSelection;
 
@@ -81,23 +73,23 @@ class _RandomNumberState extends State<RandomNumber> {
 					itemBuilder: (context) =>
 						<PopupMenuEntry<HabitAction>>[
 							const PopupMenuItem<HabitAction>(
-								child: Text('Rename'),
 								value: HabitAction.rename,
+								child: Text('Rename'),
 							),
 							const PopupMenuItem<HabitAction>(
-								child: Text('Edit categories'),
 								value: HabitAction.editCategories,
+								child: Text('Edit categories'),
 							),
 							const PopupMenuItem<HabitAction>(
-								child: Text('Remove last check'),
 								value: HabitAction.removeLastCheck,
+								child: Text('Remove last check'),
 							),
 							const PopupMenuItem<HabitAction>(
+								value: HabitAction.delete,
 								child: Text('Delete',
-									style: const TextStyle(
+									style: TextStyle(
 										fontWeight: FontWeight.bold,
 										color: Colors.red)),
-								value: HabitAction.delete,
 							),
 						],
 					onSelected: (HabitAction selection) {
@@ -111,7 +103,7 @@ class _RandomNumberState extends State<RandomNumber> {
 									_displayTextInputDialog(context, "Rename", "New name")
 										.then((newName) {h.name = newName ?? h.name;});
 									break;
-								default:
+								default: //TODO: Fix
 									print("HI");
 							}
 						});
@@ -157,7 +149,7 @@ class _RandomNumberState extends State<RandomNumber> {
 					),
 					actions: <Widget>[
 						TextButton(
-							child: Text('CANCEL'),
+							child: const Text('CANCEL'),
 							onPressed: () {
 								setState(() {
 									returnText = null;
@@ -166,7 +158,7 @@ class _RandomNumberState extends State<RandomNumber> {
 							},
 						),
 						TextButton(
-							child: Text('OK'),
+							child: const Text('OK'),
 							onPressed: () {
 								setState(() {
 									returnText = tmpText;
