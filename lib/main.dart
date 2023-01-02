@@ -3,9 +3,9 @@
 // found in the LICENSE file.
 
 import 'package:flutter/material.dart';
-import 'dart:math';
+import 'package:timeago/timeago.dart' as timeago;
 
-enum HabitAction { rename, editCategories, removeLastCheck, delete, }
+enum HabitAction { rename, addCategory, removeCategory, removeLastCheck, delete, }
 
 void main() {
   runApp(const MyApp());
@@ -45,12 +45,22 @@ class _HabitsCheckerWidgetState extends State<HabitsCheckerWidget> {
 
 		HabitAction? menuSelection;
 
+		_habits.sort((h1, h2) {
+			if (h1.checks.isEmpty && h2.checks.isEmpty) {
+				return 0;
+			} else if (h1.checks.isEmpty) {
+				return 1;
+			} else if (h2.checks.isEmpty) {
+				return -1;
+			} else {
+				return h2.checks.last.compareTo(h1.checks.last);
+			}});
 		var habitWidgets = _habits.map(
 			(h) => ListTile(
 				title: Text(h.name,
 					style: _biggerFont,
 				),
-				subtitle: Text(h.checks.toString()),
+				subtitle: Text("Last check: ${h.checks.isEmpty ? '-' : timeago.format(h.checks.last)}"),
 				leading: const Icon(
 					Icons.check_circle,
 					color: Colors.green,
@@ -73,16 +83,20 @@ class _HabitsCheckerWidgetState extends State<HabitsCheckerWidget> {
 					itemBuilder: (context) =>
 						<PopupMenuEntry<HabitAction>>[
 							const PopupMenuItem<HabitAction>(
+								value: HabitAction.removeLastCheck,
+								child: Text('Remove last check'),
+							),
+							const PopupMenuItem<HabitAction>(
 								value: HabitAction.rename,
 								child: Text('Rename'),
 							),
 							const PopupMenuItem<HabitAction>(
-								value: HabitAction.editCategories,
-								child: Text('Edit categories'),
+								value: HabitAction.addCategory,
+								child: Text('Add category'),
 							),
 							const PopupMenuItem<HabitAction>(
-								value: HabitAction.removeLastCheck,
-								child: Text('Remove last check'),
+								value: HabitAction.removeCategory,
+								child: Text('Remove category'),
 							),
 							const PopupMenuItem<HabitAction>(
 								value: HabitAction.delete,
@@ -95,6 +109,9 @@ class _HabitsCheckerWidgetState extends State<HabitsCheckerWidget> {
 					onSelected: (HabitAction selection) {
 						setState(() {
 							switch (selection) {
+								case HabitAction.removeLastCheck:
+									h.removeLastCheck();
+									break;
 								case HabitAction.delete:
 									// TODO: Confirm?
 									_habits.remove(h);
@@ -103,8 +120,22 @@ class _HabitsCheckerWidgetState extends State<HabitsCheckerWidget> {
 									_displayTextInputDialog(context, "Rename", "New name")
 										.then((newName) {h.name = newName ?? h.name;});
 									break;
-								default: //TODO: Fix
-									print("HI");
+								case HabitAction.addCategory:
+									_displayAutocompleteDialog(context, "Add category")
+										.then((Habit? cat) {
+											if (cat != null) {
+												h.addCategory(cat);
+											}
+										});
+									break;
+								case HabitAction.removeCategory:
+									_displayAutocompleteDialog(context, "Remove category", h.categories)
+										.then((Habit? cat) {
+											if (cat != null) {
+												h.removeCategory(cat);
+											}
+										});
+									break;
 							}
 						});
 						},
@@ -172,6 +203,53 @@ class _HabitsCheckerWidgetState extends State<HabitsCheckerWidget> {
 		);
 		return returnText;
 	}
+	Future<Habit?> _displayAutocompleteDialog(BuildContext context, String title, [Set<Habit>? habs]) async {
+		/*
+		 * Shows a popup with input and returns the user input if
+		 * they pressed OK, otherwise it returns null
+		 */
+		Set<Habit> habits = habs ?? Set.from(_habits);
+		Habit? tmpHabit;
+		Habit? returnHabit;
+		await showDialog(
+			context: context,
+			builder: (context) {
+				return AlertDialog(
+					title: Text(title),
+					content: Autocomplete<Habit>(
+						optionsBuilder: (TextEditingValue textEditingValue) => habits.where((Habit h) {
+							return h.name.toLowerCase().contains(textEditingValue.text.toLowerCase());
+							}),
+						onSelected: (Habit h) {
+							setState(() { tmpHabit = h; });
+						},
+						displayStringForOption: (Habit h) => h.name,
+					),
+					actions: <Widget>[
+						TextButton(
+							child: const Text('CANCEL'),
+							onPressed: () {
+								setState(() {
+									returnHabit = null;
+									Navigator.pop(context);
+								});
+							},
+						),
+						TextButton(
+							child: const Text('OK'),
+							onPressed: () {
+								setState(() {
+									returnHabit = tmpHabit;
+									Navigator.pop(context);
+								});
+							},
+						),
+					],
+				);
+			}
+		);
+		return returnHabit;
+	}
 }
 
 class Habit {
@@ -185,9 +263,17 @@ class Habit {
 		checks.add(d ?? DateTime.now());
 	}
 
-	// TODO: Remove category
+	void removeLastCheck() {
+		if (!checks.isEmpty) {
+			checks.removeLast();
+		}
+	}
+
 	void addCategory(Habit cat) {
 		categories.add(cat);
+	}
+	void removeCategory(Habit cat) {
+		categories.remove(cat);
 	}
 }
 
