@@ -63,8 +63,16 @@ class _RandomNumberState extends State<RandomNumber> {
 			)
 		).toList();
 
-		return ListView(
-			children: habitWidgets
+		return Scaffold(
+			body: ListView(
+					children: habitWidgets
+				),
+			floatingActionButton: FloatingActionButton(
+					child: Icon(Icons.add),
+					onPressed: () {
+						setState(() {_habits.add(Habit(_rndGenerator(rng).first.toString())); });
+					},
+				),
 			);
 		/* return ListView.builder( */
 		/* 	padding: const EdgeInsets.all(16.0), */
