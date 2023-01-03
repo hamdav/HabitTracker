@@ -2,8 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:timeago/timeago.dart' as timeago;
+import 'package:path_provider/path_provider.dart';
+import 'package:csv/csv.dart';
 
 enum HabitAction { rename, addCategory, removeCategory, removeLastCheck, delete, }
 
@@ -37,8 +40,17 @@ class HabitsCheckerWidget extends StatefulWidget {
 
 class _HabitsCheckerWidgetState extends State<HabitsCheckerWidget> {
 
-	final List<Habit> _habits = [];
+	List<Habit> _habits = [];
+	Set<String> getCategories() => _habits.map((h) => h.categories)
+		.reduce((r, cats) => r.union(cats));
 	final _biggerFont = const TextStyle(fontSize: 18);
+
+	@override
+	initState() {
+		print("Loading");
+		_loadHabitsFromFiles();
+		super.initState();
+	}
 
 	@override
 	Widget build(BuildContext context) {
@@ -60,7 +72,7 @@ class _HabitsCheckerWidgetState extends State<HabitsCheckerWidget> {
 				title: Text(h.name,
 					style: _biggerFont,
 				),
-				subtitle: Text("Last check: ${h.checks.isEmpty ? '-' : timeago.format(h.checks.last)}"),
+				subtitle: Text("Last check: ${h.checks.isEmpty ? '-' : timeago.format(h.checks.last)}\nCategories: ${h.categories.join(', ')}"),
 				leading: const Icon(
 					Icons.check_circle,
 					color: Colors.green,
@@ -68,7 +80,10 @@ class _HabitsCheckerWidgetState extends State<HabitsCheckerWidget> {
 					size: 40
 				  ),
 				onTap: () {
-					setState(() {h.check();});
+					setState(() {
+						h.check();
+						_saveHabitsToFiles();
+					});
 				},
 				onLongPress: () {
 					showDatePicker(
@@ -76,7 +91,10 @@ class _HabitsCheckerWidgetState extends State<HabitsCheckerWidget> {
 						firstDate: DateTime.utc(1979,1,1),
 						lastDate: DateTime.utc(3000,1,1),
 						context: context,
-					).then((date) => setState(()=> h.check(date)));
+					).then((date) => setState(() {
+						h.check(date);
+						_saveHabitsToFiles();
+					}));
 				},
 				trailing: PopupMenuButton<HabitAction>(
 					initialValue: menuSelection,
@@ -124,8 +142,8 @@ class _HabitsCheckerWidgetState extends State<HabitsCheckerWidget> {
 										.then((newName) {h.name = newName ?? h.name;});
 									break;
 								case HabitAction.addCategory:
-									_displayAutocompleteDialog(context, "Add category")
-										.then((Habit? cat) {
+									_displayAutocompleteDialog(context, "Add category", getCategories())
+										.then((String? cat) {
 											if (cat != null) {
 												h.addCategory(cat);
 											}
@@ -133,13 +151,14 @@ class _HabitsCheckerWidgetState extends State<HabitsCheckerWidget> {
 									break;
 								case HabitAction.removeCategory:
 									_displayAutocompleteDialog(context, "Remove category", h.categories)
-										.then((Habit? cat) {
+										.then((String? cat) {
 											if (cat != null) {
 												h.removeCategory(cat);
 											}
 										});
 									break;
 							}
+							_saveHabitsToFiles();
 						});
 						},
 					),
@@ -156,13 +175,50 @@ class _HabitsCheckerWidgetState extends State<HabitsCheckerWidget> {
 					_displayTextInputDialog(context, "Name of habit", "Name")
 						.then((name) {
 							if (name != null) {
-								setState(() {_habits.add(Habit(name)); });
+								setState(() {
+									_habits.add(Habit(name));
+									_saveHabitsToFiles();
+								});
 							}
 						});
 				},
 			),
 		);
+	}
+
+	Future<void> _saveHabitsToFiles() async {
+		final directory = await getApplicationDocumentsDirectory();
+
+		for (Habit h in _habits) {
+			final path = directory.path;
+			final filename = "${h.name}.habit.csv";
+			File f = File('$path/$filename');
+			f.writeAsString(h.toCsvString());
+			print("Wrote $path/$filename");
 		}
+	}
+
+	Future<void> _loadHabitsFromFiles() async {
+		final directory = await getApplicationDocumentsDirectory();
+
+		final files = directory.list();
+
+		_habits = [];
+		await for (FileSystemEntity f in files) {
+			if (f is! File) {
+				continue;
+			}
+			if (!f.path.endsWith(".habit.csv")) {
+				continue;
+			}
+			print("Reading ${f.path}");
+			final csvString = await f.readAsString();
+			_habits.add(Habit.fromCsvString(csvString));
+		}
+
+		setState((){});
+	}
+
 	Future<bool> _displayConfirmDialog(BuildContext context, String title, String body) async {
 		/*
 		 * Shows a popup with input and returns the user input if
@@ -243,34 +299,36 @@ class _HabitsCheckerWidgetState extends State<HabitsCheckerWidget> {
 		);
 		return returnText;
 	}
-	Future<Habit?> _displayAutocompleteDialog(BuildContext context, String title, [Set<Habit>? habs]) async {
+	Future<String?> _displayAutocompleteDialog(BuildContext context, String title, Set<String> options) async {
 		/*
 		 * Shows a popup with input and returns the user input if
-		 * they pressed OK, otherwise it returns null
+		 * they pressed OK, otherwise it returns null.
 		 */
-		Set<Habit> habits = habs ?? Set.from(_habits);
-		Habit? tmpHabit;
-		Habit? returnHabit;
+		String? tmpOption;
+		String? returnOption;
 		await showDialog(
 			context: context,
 			builder: (context) {
 				return AlertDialog(
 					title: Text(title),
-					content: Autocomplete<Habit>(
-						optionsBuilder: (TextEditingValue textEditingValue) => habits.where((Habit h) {
-							return h.name.toLowerCase().contains(textEditingValue.text.toLowerCase());
-							}),
-						onSelected: (Habit h) {
-							setState(() { tmpHabit = h; });
+					content: Autocomplete<String>(
+						optionsBuilder: (TextEditingValue textEditingValue) {
+							var filteredOptions = options.where((String s) =>
+									s.toLowerCase().contains(textEditingValue.text.toLowerCase())
+								).toList();
+							filteredOptions.add(textEditingValue.text);
+							return filteredOptions;
 						},
-						displayStringForOption: (Habit h) => h.name,
+						onSelected: (String s) {
+							setState(() { tmpOption = s; });
+						},
 					),
 					actions: <Widget>[
 						TextButton(
 							child: const Text('CANCEL'),
 							onPressed: () {
 								setState(() {
-									returnHabit = null;
+									returnOption = null;
 									Navigator.pop(context);
 								});
 							},
@@ -279,7 +337,7 @@ class _HabitsCheckerWidgetState extends State<HabitsCheckerWidget> {
 							child: const Text('OK'),
 							onPressed: () {
 								setState(() {
-									returnHabit = tmpHabit;
+									returnOption = tmpOption;
 									Navigator.pop(context);
 								});
 							},
@@ -288,16 +346,67 @@ class _HabitsCheckerWidgetState extends State<HabitsCheckerWidget> {
 				);
 			}
 		);
-		return returnHabit;
+		return returnOption;
 	}
 }
 
 class Habit {
 	late String name;
-	Set<Habit> categories = {};
-	late List<DateTime> checks = [];
+	Set<String> categories = {};
+	List<DateTime> checks = [];
 
 	Habit(this.name);
+
+	Habit.fromCsvString(String csvString) {
+		final nameIndexBegin = csvString.indexOf("name: ") + 6;
+		final nameIndexEnd = csvString.substring(nameIndexBegin).indexOf("\n") + nameIndexBegin;
+		final catIndexBegin = csvString.indexOf("categories: ") + 12;
+		final catIndexEnd = csvString.substring(catIndexBegin).indexOf("\n") + catIndexBegin;
+
+		name = csvString.substring(nameIndexBegin, nameIndexEnd)
+			.trim();
+		categories = csvString.substring(catIndexBegin, catIndexEnd)
+			.split(",")
+			.map((s) => s.trim())
+			.toSet();
+		if (csvString.substring(catIndexEnd).isEmpty) {
+			checks = [];
+		} else {
+			checks = csvString.split('\n')
+				.where((line) => !line.startsWith('#') && line != "")
+				//.map((dateString) => DateTime.parse(dateString))
+				.map((dateString) {print("Datestring: $dateString\n"); return DateTime.parse(dateString);})
+				.toList();
+		}
+	}
+
+	String toCsvString() {
+		return "# name: $name\n" + "# categories: "
+			+ categories.join(", ")
+			+ "\n"
+			+ checks.map((date) => date.toString())
+				.join("\n");
+	}
+
+	static Future<List<Habit>> habitsFromFiles(List<File> files) async {
+		/*
+		 * Takes a list of files objects and returns a habit for each
+		 * file. Categories are resolved last and any categories not
+		 * present will be ignored.
+		 */
+
+		// Read files
+		final contents = files.map((file) => file.readAsString());
+
+		// Create habits, ignoring categories for now.
+		var habits = Future.wait(
+			contents.map((futureCsvString) =>
+				futureCsvString.then((csvString) =>
+					Habit.fromCsvString(csvString))));
+
+		return habits;
+
+	}
 
 	void check([DateTime? d]) {
 		checks.add(d ?? DateTime.now());
@@ -309,10 +418,10 @@ class Habit {
 		}
 	}
 
-	void addCategory(Habit cat) {
+	void addCategory(String cat) {
 		categories.add(cat);
 	}
-	void removeCategory(Habit cat) {
+	void removeCategory(String cat) {
 		categories.remove(cat);
 	}
 }
